@@ -15,7 +15,7 @@ documentation](https://lxvm.github.io/AutoBZCore.jl/dev/).
 
 If you use AutoBZCore.jl in your software or published research works, please
 cite one, or, all of the following. Citations help to encourage the development
-and maintenence of open-source scientific software.
+and maintenance of open-source scientific software.
 - This repository: https://github.com/lxvm/AutoBZCore.jl
 - Our paper on BZ integration: [Automatic, high-order, and adaptive algorithms
   for Brillouin zone integration. Jason Kaye, Sophie Beck, Alex Barnett, Lorenzo
