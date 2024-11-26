@@ -122,42 +122,53 @@ function do_solve(f, dom, p, alg::AbsoluteEstimate, cacheval;
     return do_solve(f, dom, p, alg.abs_alg, cacheval.abs;
                     abstol=atol, reltol=zero(rtol), maxiters=maxiters)
 end
+=#
 
 
 """
     EvalCounter(::IntegralAlgorithm)
 
 An algorithm which counts the evaluations used by another algorithm.
-The count is stored in the `sol.numevals` field.
+The count is stored in the `sol.stats.numevals` field.
 """
 struct EvalCounter{T<:IntegralAlgorithm} <: IntegralAlgorithm
     alg::T
 end
 
-function init_cacheval(f, dom, p, alg::EvalCounter)
-    return init_cacheval(f, dom, p, alg.alg)
+function init_cacheval(f, dom, p, alg::EvalCounter; kws...)
+    return init_cacheval(f, dom, p, alg.alg; kws...)
 end
-
-function do_solve(f, dom, p, alg::EvalCounter, cacheval; kws...)
-    if f isa InplaceIntegrand
-        ni::Int = 0
-        gi = (y, x, p) -> (ni += 1; f.f!(y, x, p))
-        soli = do_solve(InplaceIntegrand(gi, f.I), dom, p, alg.alg, cacheval; kws...)
-        return IntegralSolution(soli.u, soli.resid, soli.retcode, ni)
-    elseif f isa BatchIntegrand
-        nb::Int = 0
-        gb = (y, x, p) -> (nb += length(x); f.f!(y, x, p))
-        solb = do_solve(BatchIntegrand(gb, f.y, f.x, max_batch=f.max_batch), dom, p, alg.alg, cacheval; kws...)
-        return IntegralSolution(solb.u, solb.resid, solb.retcode, nb)
-    elseif f isa NestedBatchIntegrand
-        # TODO allocate a bunch of accumulators associated with the leaves of the nested
-        # integrand or rewrap the algorithms in NestedQuad
-        error("NestedBatchIntegrand not yet supported with EvalCounter")
-    else
-        n::Int = 0
-        g = (x, p) -> (n += 1; f(x, p)) # we need let to prevent Core.Box around the captured variable
-        sol = do_solve(g, dom, p, alg.alg, cacheval; kws...)
-        return IntegralSolution(sol.u, sol.resid, sol.retcode, n)
-    end
+function init_cacheval(f::FourierIntegralFunction, dom, p, alg::EvalCounter; kws...)
+    numevals = Ref(0)
+    g = (x, s, p) -> (numevals[] += 1; f.f(x, s, p))
+    FourierIntegralFunction(g, f.s, f.prototype; alias=f.alias)
+    return numevals, init_cacheval(FourierIntegralFunction(g, f.s, f.prototype; alias=f.alias), dom, p, alg.alg; kws...)
 end
-=#
+function do_integral(f::IntegralFunction, dom, p, alg::EvalCounter, cacheval; kws...)
+    n::Int = 0
+    g = (x, p) -> (n += 1; f.f(x,p))
+    sol = do_solve(IntegralFunction(g, f.prototype), dom, p, alg.alg, cacheval; kws...)
+    return IntegralSolution(sol.value, sol.retcode, (; sol.stats..., numevals=n))
+end
+function do_integral(f::FourierIntegralFunction, dom, p, alg::EvalCounter, (numevals, cacheval); kws...)
+    # g = (x, s, p) -> (n += 1; f.f(x, s, p))
+    numevals[] = 0
+    sol = do_integral(f, dom, p, alg.alg, cacheval; kws...)
+    # sol = do_integral(FourierIntegralFunction(g, f.s, f.prototype; alias=f.alias), dom, p, alg.alg, cacheval; kws...)
+    return IntegralSolution(sol.value, sol.retcode, (; sol.stats..., numevals=numevals[]))
+end
+    # elseif InplaceIntegrand
+    #     ni::Int = 0
+    #     gi = (y, x, p) -> (ni += 1; f.f!(y, x, p))
+    #     soli = do_solve(InplaceIntegrand(gi, f.I), dom, p, alg.alg, cacheval; kws...)
+    #     return IntegralSolution(soli.u, soli.resid, soli.retcode, ni)
+    # elseif f isa BatchIntegrand
+    #     nb::Int = 0
+    #     gb = (y, x, p) -> (nb += length(x); f.f!(y, x, p))
+    #     solb = do_solve(BatchIntegrand(gb, f.y, f.x, max_batch=f.max_batch), dom, p, alg.alg, cacheval; kws...)
+    #     return IntegralSolution(solb.u, solb.resid, solb.retcode, nb)
+    # else
+    #     n::Int = 0
+    #     g = (x, p) -> (n += 1; f(x, p)) # we need let to prevent Core.Box around the captured variable
+    #     sol = do_solve(g, dom, p, alg.alg, cacheval; kws...)
+    #     return IntegralSolution(sol.u, sol.resid, sol.retcode, n)
