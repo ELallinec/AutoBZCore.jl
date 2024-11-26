@@ -138,24 +138,11 @@ end
 function init_cacheval(f, dom, p, alg::EvalCounter; kws...)
     return init_cacheval(f, dom, p, alg.alg; kws...)
 end
-function init_cacheval(f::FourierIntegralFunction, dom, p, alg::EvalCounter; kws...)
-    numevals = Ref(0)
-    g = (x, s, p) -> (numevals[] += 1; f.f(x, s, p))
-    FourierIntegralFunction(g, f.s, f.prototype; alias=f.alias)
-    return numevals, init_cacheval(FourierIntegralFunction(g, f.s, f.prototype; alias=f.alias), dom, p, alg.alg; kws...)
-end
 function do_integral(f::IntegralFunction, dom, p, alg::EvalCounter, cacheval; kws...)
     n::Int = 0
     g = (x, p) -> (n += 1; f.f(x,p))
     sol = do_solve(IntegralFunction(g, f.prototype), dom, p, alg.alg, cacheval; kws...)
     return IntegralSolution(sol.value, sol.retcode, (; sol.stats..., numevals=n))
-end
-function do_integral(f::FourierIntegralFunction, dom, p, alg::EvalCounter, (numevals, cacheval); kws...)
-    # g = (x, s, p) -> (n += 1; f.f(x, s, p))
-    numevals[] = 0
-    sol = do_integral(f, dom, p, alg.alg, cacheval; kws...)
-    # sol = do_integral(FourierIntegralFunction(g, f.s, f.prototype; alias=f.alias), dom, p, alg.alg, cacheval; kws...)
-    return IntegralSolution(sol.value, sol.retcode, (; sol.stats..., numevals=numevals[]))
 end
     # elseif InplaceIntegrand
     #     ni::Int = 0
