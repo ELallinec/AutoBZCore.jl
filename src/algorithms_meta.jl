@@ -135,14 +135,24 @@ struct EvalCounter{T<:IntegralAlgorithm} <: IntegralAlgorithm
     alg::T
 end
 
-function init_cacheval(f, dom, p, alg::EvalCounter; kws...)
-    return init_cacheval(f, dom, p, alg.alg; kws...)
+struct CounterFunction{F}
+    counter::Base.RefValue{Int64}
+    f::F
 end
-function do_integral(f::IntegralFunction, dom, p, alg::EvalCounter, cacheval; kws...)
-    n::Int = 0
-    g = (x, p) -> (n += 1; f.f(x,p))
-    sol = do_solve(IntegralFunction(g, f.prototype), dom, p, alg.alg, cacheval; kws...)
-    return IntegralSolution(sol.value, sol.retcode, (; sol.stats..., numevals=n))
+(f::CounterFunction)(args...; kws...) = (f.counter[] += 1; f.f(args...; kws...))
+
+insert_counter(f::IntegralFunction, numevals) = IntegralFunction(CounterFunction(numevals, f.f), f.prototype)
+function init_cacheval(f, dom, p, alg::EvalCounter; kws...)
+    numevals = Ref(0)
+    # some algorithms need to store the integrand in the cache
+    g = insert_counter(f, numevals)
+    return numevals, init_cacheval(g, dom, p, alg.alg; kws...)
+end
+function do_integral(f, dom, p, alg::EvalCounter, (numevals, cacheval); kws...)
+    numevals[] = 0
+    g = insert_counter(f, numevals)
+    sol = do_integral(g, dom, p, alg.alg, cacheval; kws...)
+    return IntegralSolution(sol.value, sol.retcode, (; sol.stats..., numevals=numevals[]))
 end
     # elseif InplaceIntegrand
     #     ni::Int = 0

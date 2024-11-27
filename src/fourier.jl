@@ -560,17 +560,5 @@ function init_cacheval(f::AbstractFourierIntegralFunction, dom, p, alg::AutoSymP
     return (; rule, rule_cache, cache...)
 end
 
-
-function init_cacheval(f::FourierIntegralFunction, dom, p, alg::EvalCounter; kws...)
-    numevals = Ref(0)
-    g = (x, s, p) -> (numevals[] += 1; f.f(x, s, p))
-    FourierIntegralFunction(g, f.s, f.prototype; alias=f.alias)
-    return numevals, init_cacheval(FourierIntegralFunction(g, f.s, f.prototype; alias=f.alias), dom, p, alg.alg; kws...)
-end
-function do_integral(f::FourierIntegralFunction, dom, p, alg::EvalCounter, (numevals, cacheval); kws...)
-    # g = (x, s, p) -> (n += 1; f.f(x, s, p))
-    numevals[] = 0
-    sol = do_integral(f, dom, p, alg.alg, cacheval; kws...)
-    # sol = do_integral(FourierIntegralFunction(g, f.s, f.prototype; alias=f.alias), dom, p, alg.alg, cacheval; kws...)
-    return IntegralSolution(sol.value, sol.retcode, (; sol.stats..., numevals=numevals[]))
-end
+insert_counter(f::FourierIntegralFunction, numevals) = FourierIntegralFunction(CounterFunction(numevals, f.f), f.s, f.prototype; alias=f.alias)
+insert_counter(f::CommonSolveFourierIntegralFunction, numevals) = CommonSolveFourierIntegralFunction(f.prob, f.alg, CounterFunction(numevals, f.update!), f.postsolve, f.s, f.prototype, f.specialize; alias=f.alias, f.kwargs...)
