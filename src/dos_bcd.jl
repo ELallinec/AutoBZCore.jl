@@ -35,40 +35,34 @@ function dos_solve(h, domain, p, alg::BCD, cacheval;
     d = ndims(bz)
     temp= rule isa FourierPTR ? rule.s[1][1] : rule.wxs[1][2].s[1] 
     J = size(temp)[1]
-    result = do_BCD(rule, tabeigen, h, E, α, ΔE, η, d, J)
+    result = do_BCD(rule, tabeigen, h, E, α, ΔE, η, Val(d), Val(J))
     return DOSSolution(result, Success, (;))
 
 end
 
+function bcd_integrand(h,k,H,d1H,d2H,evals,evecs,::Val{d},::Val{J},E,α,η,ΔE) where {d,J}
+    def = SVector{length(k)}([tr(d1H[i] * exp(-((H - E * I) / ΔE)^2)) for i in eachindex(d1H)])
+    ddef = SMatrix{d,d}(divided_difference_contour(zeros(ComplexF64, d, d), H,d1H,d2H , evals, evecs, Val(J), Val(d), E, ΔE))
+    return -imag(tr(inv((E + im * η) * I - h(k - im * α * def))) * det(I - im * α * ddef))
+end
 function do_BCD(rule::FourierPTR, tabeigen, h, E, α, ΔE, η, d, J)
-    DOS = 0
-    for index in CartesianIndices(rule.p) #rule.p are k-points, rule.s are HessianSeries evaluated at these points, rule.s[i][1] is h[k_i], rule.s[i][2] are first derivatives,
-        #rule.s[i][3] are second derivatives
+    DOS = 0.0
+    for index in CartesianIndices(rule.p)
         H,d1H,d2H = rule.s[index]
-        k= rule.p[index][2]
-        def = SVector{length(k)}([tr(d1H[i] * exp(-((H - E * I) / ΔE)^2)) for i in eachindex(d1H)])
-        ddef = SMatrix{d,d}(divided_difference_contour(zeros(ComplexF64, d, d), H,d1H,d2H , tabeigen[index].values, tabeigen[index].vectors, Val(J), Val(d), E, ΔE))
-
-        DOS += -imag(tr(inv((E + im * η) * I - h(k - im * α * def))) * det(I - im * α * ddef))
+        k = rule.p[index][2]
+        DOS += bcd_integrand(h,k,H,d1H,d2H,tabeigen[index].values, tabeigen[index].vectors,d,J,E,α,η,ΔE)
     end
     return DOS / (π * length(rule.p))
-
 end
-function do_BCD(rule::FourierMonkhorstPack, tabeigen, h, E, α, ΔE, η, d, J)
-    DOS = 0
-    for index in CartesianIndices(rule.wxs) #rule.p are k-points, rule.s are HessianSeries evaluated at these points, rule.s[i][1] is h[k_i], rule.s[i][2] are first derivatives,
-        #rule.s[i][3] are second derivatives
+function do_BCD(rule::FourierMonkhorstPack, tabeigen, h, E, α, ΔE, η, ::Val{d}, J) where {d}
+    DOS = 0.0
+    for index in CartesianIndices(rule.wxs)
         H,d1H,d2H = rule.wxs[index][2].s
-        k= rule.wxs[index][2].x
-        w= rule.wxs[index][1]
-        def = SVector{length(k)}([tr(d1H[i] * exp(-((H - E * I) / ΔE)^2)) for i in eachindex(d1H)])
-        ddef = SMatrix{d,d}(divided_difference_contour(zeros(ComplexF64, d, d), H,d1H,d2H , tabeigen[index].values, tabeigen[index].vectors, Val(J), Val(d), E, ΔE))
-
-
-        DOS += -w*imag(tr(inv((E + im * η) * I - h(w*k- im * α * def))) * det(I - im * α * ddef))
+        k = rule.wxs[index][2].x
+        w = rule.wxs[index][1]
+        DOS += w*bcd_integrand(h,k,H,d1H,d2H,tabeigen[index].values, tabeigen[index].vectors,Val(d),J,E,α,η,ΔE)
     end
     return DOS / (π * rule.npt^d)
-
 end
 function divided_difference_gaussian(x, y)
     if x == y
