@@ -54,5 +54,6 @@ the following reference algorithms that are also common in the literature in a f
 ```@docs
 AutoBZCore.DOSAlgorithm
 AutoBZCore.GGR
+AutoBZCore.BCD
 AutoBZCore.ImplicitIntegrationJL
 ```
