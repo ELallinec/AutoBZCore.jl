@@ -28,6 +28,7 @@ AutoBZCore.AutoSymPTRJL
 
 ```@docs
 AutoBZCore.NestedQuad
+AutoBZCore.EvalCounter
 ```
 
 ## `AutoBZProblem` algorithms
