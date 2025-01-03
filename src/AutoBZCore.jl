@@ -77,7 +77,7 @@ export AuxQuadGKJL, ContQuadGKJL, MeroQuadGKJL
 include("algorithms_iterated.jl")
 export MonkhorstPack, AutoSymPTRJL
 include("algorithms_autosymptr.jl")
-export NestedQuad#, AbsoluteEstimate, EvalCounter
+export NestedQuad, EvalCounter#, AbsoluteEstimate
 include("algorithms_meta.jl")
 
 export SymmetricBZ, nsyms
@@ -93,8 +93,9 @@ include("fourier.jl")
 export DOSProblem
 include("dos_interfaces.jl")
 
-export GGR, ImplicitIntegrationJL
+export GGR, ImplicitIntegrationJL, BCD
 include("dos_algorithms.jl")
 include("dos_ggr.jl")
+include("dos_bcd.jl")
 
 end

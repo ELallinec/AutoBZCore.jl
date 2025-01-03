@@ -559,3 +559,6 @@ function init_cacheval(f::AbstractFourierIntegralFunction, dom, p, alg::AutoSymP
     rule_cache = AutoSymPTR.alloc_cache(eltype(dom), Val(ndims(dom)), rule)
     return (; rule, rule_cache, cache...)
 end
+
+insert_counter(f::FourierIntegralFunction, numevals) = FourierIntegralFunction(CounterFunction(numevals, f.f), f.s, f.prototype; alias=f.alias)
+insert_counter(f::CommonSolveFourierIntegralFunction, numevals) = CommonSolveFourierIntegralFunction(f.prob, f.alg, CounterFunction(numevals, f.update!), f.postsolve, f.s, f.prototype, f.specialize; alias=f.alias, f.kwargs...)
