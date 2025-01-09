@@ -50,8 +50,8 @@ to the choice of parameters. Therefore it can be used with default parameters in
 
 ## Arguments
 - `npt`: the number of k-points per dimension
-- `α`: a scaling parameter for the deformation
-- `ΔE`: a parameter for the cut-off function in the deformation
+- `α`: a scaling parameter for the amplitude of the deformation
+- `ΔE`: a parameter which impacts the width of the deformation at singularities
 """
 struct BCD <: DOSAlgorithm
 	npt::Int
