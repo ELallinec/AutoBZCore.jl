@@ -7,7 +7,7 @@
 # - any function or H_R
 
 """
-    GGR(; npt=50)
+	GGR(; npt=50)
 
 Generalized Gilat-Raubenheimer method as in ["Generalized Gilat–Raubenheimer method for
 density-of-states calculation in photonic
@@ -21,23 +21,32 @@ interpolatory methods.
 - `npt`: the number of k-points per dimension
 """
 struct GGR <: DOSAlgorithm
-    npt::Int
+	npt::Int
 end
-GGR(; npt=50) = GGR(npt)
+GGR(; npt = 50) = GGR(npt)
 
 
 """
-    ImplicitIntegrationJL(; kws...)
+	ImplicitIntegrationJL(; kws...)
 
 This algorithm is implemented in an extension. Try it with `using ImplicitIntegration`.
 """
 struct ImplicitIntegrationJL{K} <: DOSAlgorithm
-    kws::K
+	kws::K
 end
 ImplicitIntegrationJL(; kws...) = ImplicitIntegrationJL(kws)
 
 """
-    BCD(npt, α, ΔE)
+	BCD(npt, α, ΔE)
+
+Brillouin Contour Deformation method was developed in ["Efficient extraction of resonant states 
+in systems with defects"](https://doi.org/10.1016/j.jcp.2023.111928).
+This method requires the Hamiltonian and its first and second order derivatives. 
+It performs a deformation of the Brillouin zone into the complex planes based on
+the first derivative of the Hamiltonian at singularity points. The deformation is controlled by 
+two parameters α and ΔE which scale the deformation around singularity respectively in amplitude and width.
+This method is expected to show exponential convergence and is not highly sensitive 
+to the choice of parameters. Therefore it can be used with default parameters in most cases.
 
 ## Arguments
 - `npt`: the number of k-points per dimension
@@ -45,9 +54,9 @@ ImplicitIntegrationJL(; kws...) = ImplicitIntegrationJL(kws)
 - `ΔE`: a parameter for the cut-off function in the deformation
 """
 struct BCD <: DOSAlgorithm
-    npt::Int
-    α::Float64
-    ΔE::Float64
-    η::Float64
+	npt::Int
+	α::Float64
+	ΔE::Float64
+	η::Float64
 end
-BCD(; npt=50, α=0.1/(2π), ΔE=0.9, η=0) = BCD(npt, α, ΔE, η)
+BCD(; npt = 50, α = 0.1 / (2π), ΔE = 0.9, η = 0) = BCD(npt, α, ΔE, η)
