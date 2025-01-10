@@ -60,3 +60,16 @@ struct BCD <: DOSAlgorithm
 	η::Float64
 end
 BCD(; npt = 50, α = 0.1 / (2π), ΔE = 0.9, η = 0) = BCD(npt, α, ΔE, η)
+
+"""
+	LT(npt)
+
+Linear Tetrahedron method ["High-precision sampling for Brillouin-zone integration in metals"](https://doi.org/10.1103/PhysRevB.40.3616).
+This method requires Hamiltonian's eigenvalues. It performs a linear interpolation of the eigenvalues on a tetrahedric decomposition
+of the Brillouin zone. Therefore only the eigenvalues are needed at each k-point to perform interpolation. This method is expected to show
+quadratic convergence.
+"""
+struct LT <: DOSAlgorithm
+	npt::Int
+end
+LT(; npt = 50) = LT(npt)
