@@ -10,9 +10,8 @@ function init_cacheval(h, domain, p, alg::LT)
 	if rule isa FourierPTR
 		tabeigen = CircularArray(getfield.(eigen.(rule.s), :values))
 	elseif rule isa FourierMonkhorstPack
-		tabeigen = CircularArray(real.(eigen.(getproperty.(getindex.(rule.wxs, 2), :s))))
+		throw(ArgumentError("LT does not support symmetrized BZ yet."))
 	end
-
 	return rule, tabeigen
 end
 
@@ -53,14 +52,14 @@ end
 
 function LT1D(rule::FourierPTR, tabeigen, J, E::Real)
 	dos = 0
-	dk =
-		for index in eachindex(rule.p)
-			for j in 1:J
-				dos += LT1D(Tuple(sort(reduce(vcat, getindex.(tabeigen[index:index+1], j)))), E)
-			end
+	for index in eachindex(rule.p)
+		for j in 1:J
+			dos += LT1D(Tuple(sort(reduce(vcat, getindex.(tabeigen[index:index+1], j)))), E)
 		end
+	end
 	return dos / length(rule.p)
 end
+
 
 
 
