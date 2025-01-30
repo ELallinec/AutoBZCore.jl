@@ -4,6 +4,7 @@ authors = ["lxvm <lorenzo@vanmunoz.com>"]
 version = "0.4.1"
 
 [deps]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 AutoSymPTR = "78a0c066-08f1-49a8-82f0-b29cd485e1d3"
 ChunkSplitters = "ae650224-84b6-46f8-82ea-d812ca08434e"
 CircularArrays = "7a955b69-7140-5f4e-a0ed-f168c5e2e749"
