@@ -23,6 +23,7 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [weakdeps]
 AtomsBase = "a963bdd2-2df7-4f54-a1ee-49d51e6be12a"
+ImplicitIntegration = "bc256489-3a69-4a66-afc4-127cc87e6182"
 Polyhedra = "67491407-f73d-577b-9b50-8179a7c68029"
 SymmetryReduceBZ = "49a35663-c880-4242-bebb-1ec8c0fa8046"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
