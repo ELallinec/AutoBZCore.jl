@@ -68,6 +68,9 @@ Linear Tetrahedron method ["High-precision sampling for Brillouin-zone integrati
 This method requires Hamiltonian's eigenvalues. It performs a linear interpolation of the eigenvalues on a tetrahedric decomposition
 of the Brillouin zone. Therefore only the eigenvalues are needed at each k-point to perform interpolation. This method is expected to show
 quadratic convergence.
+
+## Arguments
+- `npt`: the number of k-points per dimension
 """
 struct LT <: DOSAlgorithm
 	npt::Int
