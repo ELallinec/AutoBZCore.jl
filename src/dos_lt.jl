@@ -8,7 +8,7 @@ function init_cacheval(h, domain, p, alg::LT)
 	dom = canonical_ptr_basis(p.B)
 	rule = init_fourier_rule(wh, dom, kalg)
 	if rule isa FourierPTR
-		tabeigen = CircularArray(getfield.(eigen.(rule.s), :values))
+		tabeigen = CircularArray(real.(getfield.(eigen.(rule.s), :values)))
 	elseif rule isa FourierMonkhorstPack
 		throw(ArgumentError("LT does not support symmetrized BZ yet."))
 	end
@@ -115,5 +115,4 @@ function LT3D(rule::FourierPTR, tabeigen, J, E::Real)
 	end
 	return dos / (6 * length(rule.p))
 end
-
 
