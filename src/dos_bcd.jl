@@ -1,4 +1,6 @@
 using LinearAlgebra
+using StaticArrays
+
 function init_cacheval(h, domain, p, alg::BCD)
 	h isa FourierSeries || throw(ArgumentError("BCD currently supports Fourier series Hamiltonians"))
 	p isa SymmetricBZ || throw(ArgumentError("BCD supports BZ parameters from load_bz"))
@@ -20,10 +22,8 @@ function init_cacheval(h, domain, p, alg::BCD)
 			tabeigen = eigen.(Hermitian.(getindex.(getproperty.(getindex.(rule.wxs, 2), :s), 1)))
 		end
 	end
-
 	return rule, tabeigen
 end
-
 
 function dos_solve(h, domain, p, alg::BCD, cacheval;
 	abstol = 1e-8, reltol = nothing, maxiters = nothing)
@@ -37,61 +37,60 @@ function dos_solve(h, domain, p, alg::BCD, cacheval;
 	J = size(temp)[1]
 	result = -imag(do_BCD(rule, tabeigen, h, E, α, ΔE, η, Val(d), Val(J)))
 	return DOSSolution(result, Success, (;))
-
-end
-#! Test functions to see where it goes wrong
-function bcd_integrand(h, k, H, d1H, d2H, evals, evecs, ::Val{d}, ::Val{J}, E, α, η, ΔE) where {d, J}
-	def = SVector{length(k)}([tr(d1H[i] * exp(-((H - E * I) / ΔE)^2)) for i in eachindex(d1H)])
-	ddef = SMatrix{d, d}(divided_difference_contour(zeros(ComplexF64, d, d), H, d1H, d2H, evals, evecs, Val(J), Val(d), E, ΔE))
-	return tr(inv((E + im * η) * I - h(k - im * α * def))) * det(I - im * α * ddef)
 end
 
-function return_def_and_ddef(h, k, H, d1H, d2H, evals, evecs, ::Val{d}, ::Val{J}, E, α, η, ΔE) where {d, J}
-	def = SVector{length(k)}([tr(d1H[i] * exp(-((H - E * I) / ΔE)^2)) for i in eachindex(d1H)])
-	ddef = SMatrix{d, d}(divided_difference_contour(zeros(ComplexF64, d, d), H, d1H, d2H, evals, evecs, Val(J), Val(d), E, ΔE))
-	return def, ddef
-end
 
-function do_BCD(rule::FourierPTR, tabeigen, h, E, α, ΔE, η, d, J)
-	DOS = 0.0 + 0.0 * im
-	tempdef = []
-	tempddef = []
-	for index in CartesianIndices(rule.p)
-		H, d1H, d2H = rule.s[index]
-		k = rule.p[index][2]
-		DOS += bcd_integrand(h, k, H, d1H, d2H, tabeigen[index].values, tabeigen[index].vectors, d, J, E, α, η, ΔE)
+
+# Version optimisée de divided_difference_contour
+function divided_difference_contour(sum, h, d1h, d2h, tabε, tabψ, g::AbstractMatrix{ComplexF64}, A::AbstractVector{Matrix{ComplexF64}}, ::Val{J}, ::Val{d}, E, ΔE, exp_mat) where {d, J}
+	εs = (tabε .- E) ./ ΔE
+
+	# Remplir g[n,m] = divided_difference_gaussian(εs[n], εs[m]) / ΔE (utilise buffer passé)
+	@inbounds for n in 1:J
+		en = εs[n]
+		for m in 1:J
+			g[n, m] = divided_difference_gaussian(en, εs[m]) / ΔE
+		end
 	end
-	return DOS / (π * length(rule.p))
-end
-#=
-function bcd_integrand(h, k, H, d1H, d2H, evals, evecs, ::Val{d}, ::Val{J}, E, α, η, ΔE) where {d, J}
-	def = SVector{length(k)}([tr(d1H[i] * exp(-((H - E * I) / ΔE)^2)) for i in eachindex(d1H)])
-	ddef = SMatrix{d, d}(divided_difference_contour(zeros(ComplexF64, d, d), H, d1H, d2H, evals, evecs, Val(J), Val(d), E, ΔE))
-	return -imag(tr(inv((E + im * η) * I - h(k - im * α * def))) * det(I - im * α * ddef))
+
+	# Remplir A[i] = ψ' * d1h[i] * ψ dans les matrices préallouées A
+	@inbounds for i in 1:d
+		# Utilise deux mul! pour éviter des allocations intermédiaires lourdes
+		temp = similar(A[i])
+		mul!(temp, d1h[i], tabψ)
+		mul!(A[i], tabψ', temp)
+	end
+
+	# Accumulation de Σ_{n,m} g[n,m] * A_i[n,m] * A_j[m,n]
+	@inbounds for i in 1:d
+		Ai = A[i]
+		for j in 1:d
+			Aj = A[j]
+			s = 0.0 + 0.0im
+			for n in 1:J
+				for m in 1:J
+					s += g[n, m] * Ai[n, m] * Aj[m, n]
+				end
+			end
+			sum[i, j] += s
+		end
+	end
+
+	# Contribution hessienne - utilisation de mul! pour éviter une allocation temporaire
+	@inbounds for i in 1:d
+		d2h_i = d2h[i]          # tuple des matrices pour la i-ème ligne de la hessienne
+		for j in 1:(d+1-i)      # j indexe le décalage en colonne (j = colonne - i + 1)
+			d2h_ij = d2h_i[j]
+			temp = similar(d2h_ij)
+			mul!(temp, d2h_ij, exp_mat)
+			sum[i, j+i-1] += tr(temp)
+		end
+	end
+
+	return Hermitian(sum)
 end
 
-function do_BCD(rule::FourierPTR, tabeigen, h, E, α, ΔE, η, d, J)
-	DOS = 0.0
-	for index in CartesianIndices(rule.p)
-		H, d1H, d2H = rule.s[index]
-		k = rule.p[index][2]
-		DOS += bcd_integrand(h, k, H, d1H, d2H, tabeigen[index].values, tabeigen[index].vectors, d, J, E, α, η, ΔE)
-	end
-	return DOS / (π * length(rule.p))
-end
-=#
-function do_BCD(rule::FourierMonkhorstPack, tabeigen, h, E, α, ΔE, η, ::Val{d}, J) where {d}
-	DOS = 0.0
-	for index in CartesianIndices(rule.wxs)
-		H, d1H, d2H = rule.wxs[index][2].s
-		k = rule.wxs[index][2].x
-		w = rule.wxs[index][1]
-		DOS += w * bcd_integrand(h, k, H, d1H, d2H, tabeigen[index].values, tabeigen[index].vectors, Val(d), J, E, α, η, ΔE)
-	end
-	return DOS / (π * rule.npt^d)
-end
 function divided_difference_gaussian(x, y)
-
 	if abs(x - y) <= 1e-16
 		temp = -2x * exp(-x * x)
 	elseif x == -y
@@ -104,23 +103,53 @@ function divided_difference_gaussian(x, y)
 	return temp
 end
 
-function divided_difference_contour(sum, h, d1h, d2h, tabε, tabψ, ::Val{J}, ::Val{d}, E, ΔE) where {d} where {J}
 
-	@views for n in 1:J
-		for m in 1:J
-			for i in 1:d
-				for j in 1:d
-					sum[i, j] += divided_difference_gaussian((tabε[n] - E) / ΔE, (tabε[m] - E) / ΔE) / (ΔE) * (tabψ[:, n]' * d1h[i] * tabψ[:, m]) * (tabψ[:, m]' * d1h[j] * tabψ[:, n])
-				end
-
-			end
-		end
+@inline function do_BCD(rule::FourierPTR, tabeigen, h, E, α, ΔE, η, ::Val{d}, ::Val{J}) where {d, J}
+	DOS = 0.0 + 0.0im
+	norm_factor = π * length(rule.p)
+	# Préallocation des buffers g et A pour réutilisation sur chaque point k
+	g = Matrix{ComplexF64}(undef, J, J)
+	A = Vector{Matrix{ComplexF64}}(undef, d)
+	@inbounds for i in 1:d
+		A[i] = Matrix{ComplexF64}(undef, J, J)
 	end
-	for i in 1:d
-		for j in 1:d+1-i
-			#sum[i, j+i-1] += dot(d2h[i][j]', exp(-((h - E * I) / ΔE)^2))
-			sum[i, j+i-1] += tr(d2h[i][j] * exp(-(h - E * I) * (h - E * I) / (ΔE)^2))
-		end
+	@inbounds for index in CartesianIndices(rule.p)
+		H, d1H, d2H = rule.s[index]
+		k = rule.p[index][2]
+		eig = tabeigen[index]
+		DOS += bcd_integrand_eval(h, k, H, d1H, d2H, eig.values, eig.vectors, g, A, Val(d), Val(J), E, α, η, ΔE)
 	end
-	return Hermitian(sum)
+	return DOS / norm_factor
 end
+
+
+@inline function do_BCD(rule::FourierMonkhorstPack, tabeigen, h, E, α, ΔE, η, ::Val{d}, ::Val{J}) where {d, J}
+	DOS = 0.0 + 0.0im
+	norm_factor = π * rule.npt^d
+	# Préallocation des buffers g et A pour réutilisation sur chaque point k
+	g = Matrix{ComplexF64}(undef, J, J)
+	A = Vector{Matrix{ComplexF64}}(undef, d)
+	@inbounds for i in 1:d
+		A[i] = Matrix{ComplexF64}(undef, J, J)
+	end
+	@inbounds for index in CartesianIndices(rule.wxs)
+		H, d1H, d2H = rule.wxs[index][2].s
+		k = rule.wxs[index][2].x
+		w = rule.wxs[index][1]
+		eig = tabeigen[index]
+
+		DOS += w * bcd_integrand_eval(h, k, H, d1H, d2H, eig.values, eig.vectors, g, A, Val(d), Val(J), E, α, η, ΔE)
+	end
+	return DOS / norm_factor
+end
+
+
+@inline function bcd_integrand_eval(h, k::SVector, H, d1H, d2H, evals, evecs, g::AbstractMatrix{ComplexF64}, A::AbstractVector{Matrix{ComplexF64}}, ::Val{d}, ::Val{J}, E, α, η, ΔE) where {d, J}
+	M = evecs * Diagonal(exp.(-((evals .- E)/ΔE) .^ 2)) * evecs'
+	def = SVector{d}(ntuple(i -> tr(d1H[i] * M), Val(d)))
+	k_shifted::SVector{d, ComplexF64} = k - im * α * def
+	ddef = SMatrix{d, d}(divided_difference_contour(zeros(ComplexF64, d, d), H, d1H, d2H, evals, evecs, g, A, Val(J), Val(d), E, ΔE, M))
+
+	return tr(inv((E + im * η) * I - h(k_shifted))) * det(I - im * α * ddef)
+end
+
